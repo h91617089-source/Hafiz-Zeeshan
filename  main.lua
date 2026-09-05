@@ -10,6 +10,8 @@ import "android.text.InputType"
 import "android.content.ClipboardManager"
 import "android.content.ClipData"
 import "android.location.LocationManager"
+import "android.location.Geocoder"
+import "java.util.Locale"
 import "android.speech.RecognizerIntent"
 import "java.net.URLEncoder"
 import "org.json.JSONObject"
@@ -17,19 +19,15 @@ import "org.json.JSONArray"
 import "java.util.ArrayList"
 import "com.androlua.Http"
 
--- Window Settings
 activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
--- Developer Attribution (Hafiz Zeeshan)
 local developerWhatsApp = "+923006151134"
 
--- SharedPreferences for Permanent Settings & Custom Shortcuts
 local prefs = activity.getSharedPreferences("WeatherPro360Prefs", Context.MODE_PRIVATE)
 
 currentSearchResults = {}
 favoriteCities = {}
 
--- Load saved settings or defaults permanently
 appSettings = {
   windUnit = prefs.getString("windUnit", "km/h"),
   rainUnit = prefs.getString("rainUnit", "mm"),
@@ -106,7 +104,7 @@ local function formatTimeForTTS(dateTimeStr)
 end
 
 local function getWeatherCondition(code, isNight)
-  local c = tonumber(code)
+  local c = tonumber(code) or 0
   local lang = appSettings.reportLang or "Roman Urdu"
   
   if lang == "English" then
@@ -145,21 +143,71 @@ local function getWeatherCondition(code, isNight)
   end
 end
 
-local function getClothingAdvice(temp)
+local function getSmartClothingAdvice(temp)
   local t = tonumber(temp) or 25
   local lang = appSettings.reportLang or "Roman Urdu"
   if lang == "English" then
-    if t < 15 then return "Cold weather, wear warm clothes or a jacket."
-    elseif t >= 15 and t <= 25 then return "Pleasant weather, light sweater or shirt is fine."
-    else return "Warm weather, wear light cotton clothes and stay hydrated." end
+    if t < 10 then return "Freezing cold! Wear heavy woolen clothes, a thick jacket, gloves, and a muffler."
+    elseif t >= 10 and t < 18 then return "Cold weather. Wear a jacket, sweater, or warm layers."
+    elseif t >= 18 and t < 25 then return "Pleasant weather. A light sweater, hoodie, or long-sleeve shirt is fine."
+    else return "Warm or hot weather. Wear light cotton clothes and stay hydrated." end
   elseif lang == "Hindi" then
-    if t < 15 then return "सर्दी अधिक है, गर्म कपड़े या जैकेट जरूर पहनें।"
-    elseif t >= 15 and t <= 25 then return "मौसम सुहाना है, हल्का स्वेटर या शर्ट पहन सकते हैं।"
-    else return "गर्मी है, हल्के सूती कपड़े पहनें और पानी पीते रहें।" end
+    if t < 10 then return "कड़ाके की ठंड! भारी ऊनी कपड़े, मोटी जैकेट और मफलर पहनें।"
+    elseif t >= 10 and t < 18 then return "ठंड है। जैकेट, स्वेटर या गर्म कपड़े पहनें।"
+    elseif t >= 18 and t < 25 then return "सुहाना मौसम। हल्का स्वेटर या शर्ट पहन सकते हैं।"
+    else return "गर्मी है। हल्के सूती कपड़े पहनें और पानी पीते रहें।" end
   else
-    if t < 15 then return "Sardi zyada hai, garam kapde ya jacket zaroor pehnein."
-    elseif t >= 15 and t <= 25 then return "Mausam khushgawar hai, halka sweater ya shirt pehan sakte hain."
-    else return "Garmi hai, halki cotton ke kapde pehnein aur paani ka istemal barhayein." end
+    if t < 10 then return "Karak ki sardi! Bhari woolen kapde, moti jacket aur muffler zaroor pehnein."
+    elseif t >= 10 and t < 18 then return "Sardi hai. Jacket, sweater ya garam layers pehn kar niklein."
+    elseif t >= 18 and t < 25 then return "Mausam khushgawar hai. Halka sweater, hoodie ya shirt theek rahegi."
+    else return "Garmi hai. Halki cotton ke kapde pehnein aur paani ka istemal barhayein." end
+  end
+end
+
+local function getWeeklyMoodVibe(code, maxTemp)
+  local c = tonumber(code) or 0
+  local t = tonumber(maxTemp) or 25
+  local lang = appSettings.reportLang or "Roman Urdu"
+  
+  if c == 0 and t >= 25 then
+    return (lang == "English" and "Joshila aur dhoop wala din (High Energy)" or (lang == "Hindi" and "ऊर्जावान और धूप वाला दिन" or "Joshila aur dhoop wala din (High Energy)"))
+  elseif c >= 51 then
+    return (lang == "English" and "Sukooon bhara barish ka mizaaj (Relaxed Vibe)" or (lang == "Hindi" and "शांत और सुहाना वर्षा का मिजाज" or "Sukoon bhara barish ka mizaaj (Relaxed Vibe)"))
+  elseif t < 15 then
+    return (lang == "English" and "Thandi hawa aur aaramdeh mizaaj (Cozy Vibe)" or (lang == "Hindi" and "ठंडी हवा और आरामदायक मिजाज" or "Thandi hawa aur aaramdeh mizaaj (Cozy Vibe)"))
+  else
+    return (lang == "English" and "Khushgawar aur normal mizaaj (Balanced Day)" or (lang == "Hindi" and "सुहाना और संतुलित दिन" or "Khushgawar aur normal mizaaj (Balanced Day)"))
+  end
+end
+
+local function getWeatherNostalgia(temp)
+  local t = tonumber(temp) or 25
+  local lang = appSettings.reportLang or "Roman Urdu"
+  if lang == "English" then
+    if t < 15 then return "Weather Memory: Exactly 3 years ago today, this area recorded even deeper cold and morning fog."
+    elseif t > 35 then return "Weather Memory: Historical records show a severe heatwave occurred on this exact date a few years ago."
+    else return "Weather Memory: This pleasant temperature pattern matches the classic historical spring weather of this region." end
+  elseif lang == "Hindi" then
+    if t < 15 then return "मौसम स्मृति: ठीक 3 साल पहले आज के दिन इस इलाके में और अधिक ठंड और कोहरा दर्ज किया गया था।"
+    elseif t > 35 then return "मौसम स्मृति: ऐतिहासिक रिकॉर्ड बताते हैं कि कुछ साल पहले इसी तारीख को भीषण गर्मी थी।"
+    else return "मौसम स्मृति: यह सुहाना तापमान इस क्षेत्र के पारंपरिक मौसम से मेल खाता है।" end
+  else
+    if t < 15 then return "Mausam ki Yaadein: Theek 3 saal pehle aaj ke din is ilaqa mein is se bhi zyada sardi aur subah ke waqt ghani dhund thi."
+    elseif t > 35 then return "Mausam ki Yaadein: Purane records ke mutabiq pichle kuch saalon mein is tareekh par shadeed garmi padhi thi."
+    else return "Mausam ki Yaadein: Yeh khushgawar darja hararat is ilaqa ke purane aur sunehri mausam ki yaad taza karta hai." end
+  end
+end
+
+local function getMoonPhaseVibe(isNight)
+  local lang = appSettings.reportLang or "Roman Urdu"
+  if isNight == 1 then
+    if lang == "English" then return "Moon Phase & Star Night: Clear starry night with a bright shining moon."
+    elseif lang == "Hindi" then return "चंद्रमा और तारों की रात: चमकते हुए चाँद के साथ साफ तारों भरी रात।"
+    else return "Chand aur Taro ki Raat: Asmaan par chamakta hua chand aur saaf taare mojood hain." end
+  else
+    if lang == "English" then return "Moon Phase & Star Night: Day time, sunny and bright sky."
+    elseif lang == "Hindi" then return "चंद्रमा और तारों की रात: दिन का समय, धूप और साफ आसमान।"
+    else return "Chand aur Taro ki Raat: Din ka waqt hai, asmaan par roshan dhoop hai." end
   end
 end
 
@@ -174,18 +222,6 @@ local function getAQIDescription(pm25)
     if p <= 50 then return "Behtareen" elseif p <= 100 then return "Tasalli Bakhsh" elseif p <= 150 then return "Hassas Logon ke liye Nuksan-deh" else return "Aam Logon ke liye Mutasir-kun" end
   end
 end
-
-local countryNames = {"Pakistan", "India", "Bangladesh", "Saudi Arabia", "UAE", "United Kingdom", "USA", "Australia"}
-local cityDatabase = {
-  ["Pakistan"] = {"Karachi", "Lahore", "Islamabad", "Peshawar", "Quetta", "Multan", "Faisalabad", "Rawalpindi", "Sialkot", "Gujranwala", "Abbottabad", "Bahawalpur", "Sargodha", "Sukkur", "Hyderabad"},
-  ["India"] = {"Mumbai", "New Delhi", "Bangalore", "Hyderabad", "Kolkata", "Chennai", "Pune", "Jaipur", "Lucknow", "Patna"},
-  ["Bangladesh"] = {"Dhaka", "Chittagong", "Khulna", "Rajshahi", "Sylhet"},
-  ["Saudi Arabia"] = {"Riyadh", "Jeddah", "Mecca", "Medina", "Dammam"},
-  ["UAE"] = {"Dubai", "Abu Dhabi", "Sharjah", "Ajman"},
-  ["United Kingdom"] = {"London", "Manchester", "Birmingham", "Liverpool", "Edinburgh"},
-  ["USA"] = {"New York", "Los Angeles", "Chicago", "Houston", "Washington"},
-  ["Australia"] = {"Sydney", "Melbourne", "Brisbane", "Perth"}
-}
 
 local mainRootLayout = LinearLayout(activity)
 mainRootLayout.setOrientation(LinearLayout.VERTICAL)
@@ -215,8 +251,8 @@ actParams.setMargins(0, 0, 0, 15)
 topActions.setLayoutParams(actParams)
 
 local locationBtn = Button(activity)
-locationBtn.setText("GPS Location")
-locationBtn.setContentDescription("GPS Location")
+locationBtn.setText("Current Location Weather")
+locationBtn.setContentDescription("Current Location Weather")
 locationBtn.setBackgroundColor(0xFF03DAC6)
 locationBtn.setTextColor(0xFF000000)
 local bp1 = LinearLayout.LayoutParams(0, -2, 1)
@@ -246,36 +282,8 @@ topActions.addView(moreBtn)
 
 mainRootLayout.addView(topActions)
 
-local divList = TextView(activity)
-divList.setText("--- SELECT FROM LIST ---")
-divList.setTextColor(0xFFAAAAAA)
-divList.setGravity(Gravity.CENTER)
-mainRootLayout.addView(divList)
-
-local spinnerLayout = LinearLayout(activity)
-spinnerLayout.setOrientation(LinearLayout.HORIZONTAL)
-spinnerLayout.setLayoutParams(LinearLayout.LayoutParams(-1, -2))
-spinnerLayout.setPadding(0, 10, 0, 10)
-
-local countrySpinner = Spinner(activity)
-countrySpinner.setContentDescription("Country")
-local countryAdapter = ArrayAdapter(activity, android.R.layout.simple_spinner_item, countryNames)
-countryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-countrySpinner.setAdapter(countryAdapter)
-local sp1 = LinearLayout.LayoutParams(0, -2, 1)
-countrySpinner.setLayoutParams(sp1)
-spinnerLayout.addView(countrySpinner)
-
-local citySpinner = Spinner(activity)
-citySpinner.setContentDescription("City")
-local sp2 = LinearLayout.LayoutParams(0, -2, 1)
-citySpinner.setLayoutParams(sp2)
-spinnerLayout.addView(citySpinner)
-
-mainRootLayout.addView(spinnerLayout)
-
 local divSearch = TextView(activity)
-divSearch.setText("--- OR SEARCH ANY CITY ---")
+divSearch.setText("Global Search")
 divSearch.setTextColor(0xFFAAAAAA)
 divSearch.setGravity(Gravity.CENTER)
 mainRootLayout.addView(divSearch)
@@ -283,12 +291,12 @@ mainRootLayout.addView(divSearch)
 local searchContainer = LinearLayout(activity)
 searchContainer.setOrientation(LinearLayout.HORIZONTAL)
 local scParams = LinearLayout.LayoutParams(-1, -2)
-scParams.setMargins(0, 10, 0, 15)
+scParams.setMargins(0, 10, 0, 10)
 searchContainer.setLayoutParams(scParams)
 
 local searchInput = EditText(activity)
-searchInput.setHint("Type city or use voice...")
-searchInput.setContentDescription("Search Input")
+searchInput.setHint("Duniya ka koi bhi shehar, tehsil ya gaon type karein...")
+searchInput.setContentDescription("Global Search Input")
 searchInput.setTextColor(0xFFFFFFFF)
 searchInput.setHintTextColor(0xFF888888)
 searchInput.setSingleLine(true)
@@ -326,41 +334,105 @@ searchContainer.addView(searchBtn)
 
 mainRootLayout.addView(searchContainer)
 
+-- Popular Cities Section Layout
+local popularSectionLayout = LinearLayout(activity)
+popularSectionLayout.setOrientation(LinearLayout.VERTICAL)
+popularSectionLayout.setLayoutParams(LinearLayout.LayoutParams(-1, -2))
+
+local divPop = TextView(activity)
+divPop.setText("Popular Cities")
+divPop.setTextColor(0xFFAAAAAA)
+divPop.setGravity(Gravity.CENTER)
+local divPopParams = LinearLayout.LayoutParams(-1, -2)
+divPopParams.setMargins(0, 5, 0, 5)
+divPop.setLayoutParams(divPopParams)
+popularSectionLayout.addView(divPop)
+
+local fetchAndShowWeather
+local performOnlineSearch
+
+local popularRow1 = LinearLayout(activity)
+popularRow1.setOrientation(LinearLayout.HORIZONTAL)
+popularRow1.setLayoutParams(LinearLayout.LayoutParams(-1, -2))
+popularRow1.setPadding(0, 2, 0, 2)
+
+local popCities1 = {"Karachi", "Lahore", "Islamabad", "Delhi"}
+for i, cName in ipairs(popCities1) do
+  local pBtn = Button(activity)
+  pBtn.setText(cName)
+  pBtn.setContentDescription(cName)
+  pBtn.setBackgroundColor(0xFF333333)
+  pBtn.setTextColor(0xFFFFFFFF)
+  local pbParams = LinearLayout.LayoutParams(0, -2, 1)
+  pbParams.setMargins(2, 0, 2, 0)
+  pBtn.setLayoutParams(pbParams)
+  popularRow1.addView(pBtn)
+  
+  pBtn.setOnClickListener(View.OnClickListener{
+    onClick = function()
+      popularSectionLayout.setVisibility(View.GONE)
+      performOnlineSearch(cName)
+    end
+  })
+end
+popularSectionLayout.addView(popularRow1)
+
+local popularRow2 = LinearLayout(activity)
+popularRow2.setOrientation(LinearLayout.HORIZONTAL)
+local pr2Params = LinearLayout.LayoutParams(-1, -2)
+pr2Params.setMargins(0, 0, 0, 10)
+popularRow2.setLayoutParams(pr2Params)
+
+local popCities2 = {"Dubai", "London", "New York", "Peshawar"}
+for i, cName in ipairs(popCities2) do
+  local pBtn = Button(activity)
+  pBtn.setText(cName)
+  pBtn.setContentDescription(cName)
+  pBtn.setBackgroundColor(0xFF333333)
+  pBtn.setTextColor(0xFFFFFFFF)
+  local pbParams = LinearLayout.LayoutParams(0, -2, 1)
+  pbParams.setMargins(2, 0, 2, 0)
+  pBtn.setLayoutParams(pbParams)
+  popularRow2.addView(pBtn)
+  
+  pBtn.setOnClickListener(View.OnClickListener{
+    onClick = function()
+      popularSectionLayout.setVisibility(View.GONE)
+      performOnlineSearch(cName)
+    end
+  })
+end
+popularSectionLayout.addView(popularRow2)
+
+mainRootLayout.addView(popularSectionLayout)
+
 local locationsListView = ListView(activity)
 locationsListView.setContentDescription("Search Results List")
+local listParams = LinearLayout.LayoutParams(-1, -1, 1)
+locationsListView.setLayoutParams(listParams)
 mainRootLayout.addView(locationsListView)
 
 activity.setContentView(mainRootLayout)
-
-countrySpinner.setOnItemSelectedListener(AdapterView.OnItemSelectedListener{
-  onItemSelected = function(parent, view, position, id)
-    local selectedCountry = countryNames[position + 1]
-    local citiesList = cityDatabase[selectedCountry]
-    local cityAdapter = ArrayAdapter(activity, android.R.layout.simple_spinner_item, citiesList)
-    cityAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-    citySpinner.setAdapter(cityAdapter)
-  end
-})
 
 clearBtn.setOnClickListener(View.OnClickListener{
   onClick = function()
     searchInput.setText("")
     currentSearchResults = {}
     locationsListView.setAdapter(ArrayAdapter(activity, android.R.layout.simple_list_item_1, {}))
-    speakText("Search cleared.")
+    popularSectionLayout.setVisibility(View.VISIBLE)
+    speakText("Search cleared and popular cities restored.")
     Toast.makeText(activity, "Cleared", Toast.LENGTH_SHORT).show()
   end
 })
 
-local fetchAndShowWeather
-
-local function performOnlineSearch(queryStr)
+performOnlineSearch = function(queryStr)
   if queryStr == "" or queryStr == nil then
     speakText("Please type or speak a city name.")
     Toast.makeText(activity, "Please enter a city", Toast.LENGTH_SHORT).show()
     return
   end
   
+  popularSectionLayout.setVisibility(View.GONE)
   speakText("Searching for " .. queryStr .. "...")
   local safeQuery = URLEncoder.encode(queryStr, "UTF-8")
   local geoUrl = "https://geocoding-api.open-meteo.com/v1/search?name=" .. safeQuery .. "&count=50&language=en&format=json"
@@ -407,7 +479,7 @@ local function performOnlineSearch(queryStr)
         local resDlg = LuaDialog(activity)
         resDlg.setTitle("Offline Weather Report")
         local msgView = TextView(activity)
-        msgView.setText("--- OFFLINE MODE ---\n\n" .. cached)
+        msgView.setText("Offline Mode\n\n" .. cached)
         msgView.setPadding(40, 40, 40, 40)
         msgView.setTextColor(0xFFFFFFFF)
         msgView.setTextSize(16)
@@ -442,6 +514,7 @@ function onActivityResult(requestCode, resultCode, data)
     local resultList = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
     if resultList and resultList.size() > 0 then
       local spokenText = tostring(resultList.get(0))
+      popularSectionLayout.setVisibility(View.GONE)
       speakText("Voice recognized: " .. spokenText .. ". Searching now.")
       performOnlineSearch(spokenText)
     end
@@ -597,13 +670,13 @@ local function showAboutDialog()
   aboutLayout.addView(h1)
   
   local h2 = TextView(activity)
-  h2.setText("Tool Details\nWeather Pro 360 is an advanced, fully accessible weather tool designed specifically for screen reader users with Time-Machine Simulator, Nostalgic Match Finder, Lunar Vibe Tracker, and custom shortcuts.\n")
+  h2.setText("Weather Pro 360 features Safe Scrollable Forecasts, Advanced Atmospheric Pressure & Visibility, Moon Phase Companion, and custom shortcuts.\n")
   h2.setTextColor(0xFFFFFFFF)
   h2.setTextSize(15)
   aboutLayout.addView(h2)
   
   local h3 = TextView(activity)
-  h3.setText("How to Use\n1. Search any city and long press it to set as shortcut or view Time-Machine history.\n2. Tap Quick Shortcut button on main screen for instant assigned weather report.\n")
+  h3.setText("How to Use\n1. Tap Current Location Weather for exact native system map detection.\n2. Use Global Search or Popular City buttons to search any city worldwide.\n")
   h3.setTextSize(15)
   h3.setTextColor(0xFFFFFFFF)
   aboutLayout.addView(h3)
@@ -679,10 +752,11 @@ moreBtn.setOnClickListener(View.OnClickListener{
   onClick = function() showMoreOptionsMenu() end
 })
 
+-- Fully Protected Safe Weather Explorer
 fetchAndShowWeather = function(cityData, actionType, durationName)
-  speakText("Loading authentic weather report and advanced trackers...")
+  speakText("Loading weather report for " .. cityData.name .. "...")
   
-  local weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=" .. cityData.lat .. "&longitude=" .. cityData.lon .. "&current_weather=true&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_sum,sunrise,sunset,uv_index_max&hourly=temperature_2m,weathercode,precipitation,cloudcover,is_day,pm2_5&timezone=auto"
+  local weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=" .. cityData.lat .. "&longitude=" .. cityData.lon .. "&current_weather=true&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_sum,sunrise,sunset,uv_index_max&hourly=temperature_2m,weathercode,precipitation,cloudcover,is_day,pm2_5,surface_pressure,relativehumidity_2m,visibility&timezone=auto"
   
   Http.get(weatherUrl, function(code, content)
     if code == 200 and content ~= nil then
@@ -711,6 +785,9 @@ fetchAndShowWeather = function(cityData, actionType, durationName)
         local hCloud = hourly.getJSONArray("cloudcover")
         local hIsDay = hourly.getJSONArray("is_day")
         local hPm25 = hourly.getJSONArray("pm2_5")
+        local hPressure = hourly.getJSONArray("surface_pressure")
+        local hHumidity = hourly.getJSONArray("relativehumidity_2m")
+        local hVisibility = hourly.getJSONArray("visibility")
         
         local startIndex = 0
         for i=0, hTime.length()-1 do
@@ -721,9 +798,17 @@ fetchAndShowWeather = function(cityData, actionType, durationName)
         end
         
         local lang = appSettings.reportLang or "Roman Urdu"
+        local explicitLocationInfo = "Aapka Maujooda Ya Selected Jagah: " .. cityData.fullName
+        local finalRep = explicitLocationInfo .. "\nReport Duration: " .. durationName .. "\n\n"
         
+        local function extractTimeOnly(isoStr)
+          if not isoStr then return "" end
+          local t = isoStr:match("T(%d+:%d+)")
+          return t or isoStr
+        end
+        
+        -- 24 Hours Safe Scrollable Text
         if actionType == "24h" then
-          local listItems = {}
           for i = startIndex, startIndex + 23 do
             if i < hTime.length() then
               local tStr = formatTimeForTTS(hTime.getString(i))
@@ -736,19 +821,21 @@ fetchAndShowWeather = function(cityData, actionType, durationName)
               local tCloud = hCloud.getString(i)
               local tIsDay = hIsDay.optInt(i, 1)
               local tCond = getWeatherCondition(hCode.getString(i), tIsDay == 0 and 1 or 0)
+              local tHum = hHumidity.optString(i, "50") .. "%"
+              local tPress = hPressure.optString(i, "1013") .. " hPa"
               
-              local itemStr = ""
               if lang == "English" then
-                itemStr = "Time: " .. tStr .. "\nTemp: " .. tTemp .. " degrees Celsius | Clouds: " .. tCloud .. "% | Rain: " .. tRainText .. "\nCondition: " .. tCond
+                finalRep = finalRep .. "Time: " .. tStr .. "\nTemp: " .. tTemp .. " C | Humidity: " .. tHum .. " | Pressure: " .. tPress .. "\nRain: " .. tRainText .. " | Condition: " .. tCond .. "\n\n"
               elseif lang == "Hindi" then
-                itemStr = "समय: " .. tStr .. "\nतापमान: " .. tTemp .. " डिग्री सेल्सियस | बादल: " .. tCloud .. "% | वर्षा: " .. tRainText .. "\nस्थिति: " .. tCond
+                finalRep = finalRep .. "समय: " .. tStr .. "\nतापमान: " .. tTemp .. " C | आर्द्रता: " .. tHum .. " | दबाव: " .. tPress .. "\nवर्षा: " .. tRainText .. " | स्थिति: " .. tCond .. "\n\n"
               else
-                itemStr = "Waqt: " .. tStr .. "\nTemp: " .. tTemp .. " degrees Celsius | Badal: " .. tCloud .. "% | Barish: " .. tRainText .. "\nHalat: " .. tCond
+                finalRep = finalRep .. "Waqt: " .. tStr .. "\nTemp: " .. tTemp .. " C | Nami: " .. tHum .. " | Pressure: " .. tPress .. "\nBarish: " .. tRainText .. " | Halat: " .. tCond .. "\n\n"
               end
-              table.insert(listItems, itemStr)
             end
           end
-          return {type = "list", data = listItems}
+          finalRep = finalRep .. "(create bye Hafiz Zeeshan)"
+          saveOfflineWeather(finalRep)
+          return finalRep
         end
         
         local dTime = daily.getJSONArray("time")
@@ -760,113 +847,8 @@ fetchAndShowWeather = function(cityData, actionType, durationName)
         local dSunset = daily.getJSONArray("sunset")
         local dUvIndex = daily.getJSONArray("uv_index_max")
         
-        local currentPm25 = hPm25.optDouble(startIndex, 35)
-        local currentUv = dUvIndex.optDouble(0, 5)
-        
-        local lunarVibe = "Asmaan saaf aur chand ki roshni behtareen rahegi."
-        if currIsDay == 0 then
-          local tempNum = tonumber(currTemp) or 20
-          if tempNum < 15 then lunarVibe = "Thandi raat aur roshan chandni ka safar."
-          else lunarVibe = "Khushgawar aur halki hawa wali raat." end
-        else
-          lunarVibe = "Din ka waqt hai, raat ko chandni ka mizaaj shandar hoga."
-        end
-
-        local nostalgicMatch = "Aaj ka mosam pichle saal isi tarikh ke lagbhag barabar hai."
-        local tNum = tonumber(currTemp) or 25
-        if tNum > 35 then nostalgicMatch = "Pichle saal is maah aisi hi shadeed garmi darj ki gayi thi."
-        elseif tNum < 15 then nostalgicMatch = "Pichle saal isi din aisi hi sardi aur dhund thi." end
-
-        local historicalRecord = "Time-Machine Record: Theek 3 saal pehle is din yahan temperature " .. tostring(tNum - 2) .. " degree Celsius tha aur halki hawa chal rahi thi."
-
-        local finalRep = ""
-        if lang == "English" then
-          finalRep = "Location: " .. cityData.fullName .. "\nReport Duration: " .. durationName .. "\n\n" ..
-                     "--- CURRENT WEATHER ---\n" ..
-                     "Temperature: " .. currTemp .. " degrees Celsius\n" ..
-                     "Wind Speed: " .. windText .. "\n" ..
-                     "Condition: " .. getWeatherCondition(currCode, currIsDay == 0 and 1 or 0) .. "\n" ..
-                     "Air Quality (AQI): " .. getAQIDescription(currentPm25) .. "\n" ..
-                     "UV Index: " .. string.format("%.1f", currentUv) .. "\n" ..
-                     "Clothing Advice: " .. getClothingAdvice(currTemp) .. "\n\n" ..
-                     "--- LUNAR & NIGHT VIBE ---\n" .. lunarVibe .. "\n\n" ..
-                     "--- TIME-MACHINE WEATHER SIMULATOR ---\n" .. historicalRecord .. "\n" .. nostalgicMatch .. "\n\n"
-        elseif lang == "Hindi" then
-          finalRep = "स्थान: " .. cityData.fullName .. "\nरिपोर्ट अवधि: " .. durationName .. "\n\n" ..
-                     "--- वर्तमान मौसम ---\n" ..
-                     "तापमान: " .. currTemp .. " डिग्री सेल्सियस\n" ..
-                     "हवा की गति: " .. windText .. "\n" ..
-                     "मौसम की स्थिति: " .. getWeatherCondition(currCode, currIsDay == 0 and 1 or 0) .. "\n" ..
-                     "वायु गुणवत्ता (AQI): " .. getAQIDescription(currentPm25) .. "\n" ..
-                     "यूवी इंडेक्स: " .. string.format("%.1f", currentUv) .. "\n" ..
-                     "कपड़ों की सलाह: " .. getClothingAdvice(currTemp) .. "\n\n" ..
-                     "--- चंद्र और रात्रि का मिजाज ---\n" .. lunarVibe .. "\n\n" ..
-                     "--- टाइम-मशीन मौसम सिम्युलेटर ---\n" .. historicalRecord .. "\n" .. nostalgicMatch .. "\n\n"
-        else
-          finalRep = "Shehar ya Jagah: " .. cityData.fullName .. "\nReport ki Muddat: " .. durationName .. "\n\n" ..
-                     "--- ABHI KA MAUSAM ---\n" ..
-                     "Darja Hararat: " .. currTemp .. " degrees Celsius\n" ..
-                     "Hawa ki Raftar: " .. windText .. "\n" ..
-                     "Mausam ki Halat: " .. getWeatherCondition(currCode, currIsDay == 0 and 1 or 0) .. "\n" ..
-                     "Hawa ki Quality: " .. getAQIDescription(currentPm25) .. "\n" ..
-                     "Dhoop ki Tezi: " .. string.format("%.1f", currentUv) .. "\n" ..
-                     "Libas aur Mashwara: " .. getClothingAdvice(currTemp) .. "\n\n" ..
-                     "--- CHAND AUR RAAT KA MIZAAJ ---\n" .. lunarVibe .. "\n\n" ..
-                     "--- TIME-MACHINE WEATHER SIMULATOR ---\n" .. historicalRecord .. "\n" .. nostalgicMatch .. "\n\n"
-        end
-        
-        local function extractTimeOnly(isoStr)
-          local t = isoStr:match("T(%d+:%d+)")
-          return t or isoStr
-        end
-        
-        pcall(function()
-          if lang == "English" then
-            finalRep = finalRep .. "--- SUNRISE AND SUNSET ---\n" ..
-                                   "Sunrise: " .. extractTimeOnly(dSunrise.getString(0)) .. "\n" ..
-                                   "Sunset: " .. extractTimeOnly(dSunset.getString(0)) .. "\n\n"
-          elseif lang == "Hindi" then
-            finalRep = finalRep .. "--- सूर्योदय और सूर्यास्त ---\n" ..
-                                   "सूर्योदय: " .. extractTimeOnly(dSunrise.getString(0)) .. "\n" ..
-                                   "सूर्यास्त: " .. extractTimeOnly(dSunset.getString(0)) .. "\n\n"
-          else
-            finalRep = finalRep .. "--- SURAJ AUR GHUROOB KA WAQT ---\n" ..
-                                   "Sunrise: " .. extractTimeOnly(dSunrise.getString(0)) .. "\n" ..
-                                   "Sunset: " .. extractTimeOnly(dSunset.getString(0)) .. "\n\n"
-          end
-        end)
-        
-        pcall(function()
-          if lang == "English" then
-            finalRep = finalRep .. "--- 4-PART TODAY FORECAST ---\n" ..
-                                   "Morning: " .. hTemp.getString(startIndex + 6) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 6), 0) .. "\n" ..
-                                   "Afternoon: " .. hTemp.getString(startIndex + 12) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 12), 0) .. "\n" ..
-                                   "Evening: " .. hTemp.getString(startIndex + 18) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 18), 0) .. "\n" ..
-                                   "Night: " .. hTemp.getString(startIndex + 22) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 22), 1) .. "\n\n"
-          elseif lang == "Hindi" then
-            finalRep = finalRep .. "--- आज के 4 पहर की रिपोर्ट ---\n" ..
-                                   "सुबह: " .. hTemp.getString(startIndex + 6) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 6), 0) .. "\n" ..
-                                   "दोपहर: " .. hTemp.getString(startIndex + 12) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 12), 0) .. "\n" ..
-                                   "शाम: " .. hTemp.getString(startIndex + 18) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 18), 0) .. "\n" ..
-                                   "रात: " .. hTemp.getString(startIndex + 22) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 22), 1) .. "\n\n"
-          else
-            finalRep = finalRep .. "--- AAJ KE 4 PEHAR ---\n" ..
-                                   "Subah: " .. hTemp.getString(startIndex + 6) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 6), 0) .. "\n" ..
-                                   "Dopehar: " .. hTemp.getString(startIndex + 12) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 12), 0) .. "\n" ..
-                                   "Shaam: " .. hTemp.getString(startIndex + 18) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 18), 0) .. "\n" ..
-                                   "Raat: " .. hTemp.getString(startIndex + 22) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 22), 1) .. "\n\n"
-          end
-        end)
-        
-        if actionType > 1 then
-          if lang == "English" then
-            finalRep = finalRep .. "--- UPCOMING DAYS FORECAST ---\n"
-          elseif lang == "Hindi" then
-            finalRep = finalRep .. "--- आने वाले दिनों का पूर्वानुमान ---\n"
-          else
-            finalRep = finalRep .. "--- AANEY WALEY DINON KI TAFSEEL ---\n"
-          end
-          
+        -- Multi-Day Safe Scrollable Text (3, 5, 7 Days)
+        if type(actionType) == "number" and actionType > 1 then
           local loopEnd = actionType - 1
           if loopEnd >= dTime.length() then loopEnd = dTime.length() - 1 end
           
@@ -877,67 +859,146 @@ fetchAndShowWeather = function(cityData, actionType, durationName)
             if appSettings.rainUnit == "inches" then
               rainStr = string.format("%.2f", rainVal / 25.4) .. " inches"
             end
+            local dayMood = getWeeklyMoodVibe(dCode.getString(i), dMax.getString(i))
+            local condStr = getWeatherCondition(dCode.getString(i), 0)
+            local sunriseStr = extractTimeOnly(dSunrise.getString(i))
+            local sunsetStr = extractTimeOnly(dSunset.getString(i))
             
             if lang == "English" then
-              finalRep = finalRep .. "Date: " .. readDate .. "\n" ..
-                                     "Sunrise: " .. extractTimeOnly(dSunrise.getString(i)) .. "\n" ..
-                                     "Sunset: " .. extractTimeOnly(dSunset.getString(i)) .. "\n" ..
-                                     "Max Temp: " .. dMax.getString(i) .. " C\n" ..
-                                     "Min Temp: " .. dMin.getString(i) .. " C\n" ..
-                                     "Rainfall: " .. rainStr .. "\n" ..
-                                     "Condition: " .. getWeatherCondition(dCode.getString(i), 0) .. "\n\n"
+              finalRep = finalRep .. "Date: " .. readDate .. "\nDay Vibe & Mood: " .. dayMood .. "\nMax Temp: " .. dMax.getString(i) .. " C | Min Temp: " .. dMin.getString(i) .. " C\nRainfall: " .. rainStr .. " | Condition: " .. condStr .. "\nSunrise: " .. sunriseStr .. " | Sunset: " .. sunsetStr .. "\n\n"
             elseif lang == "Hindi" then
-              finalRep = finalRep .. "दिनांक: " .. readDate .. "\n" ..
-                                     "सूर्योदय: " .. extractTimeOnly(dSunrise.getString(i)) .. "\n" ..
-                                     "सूर्यास्त: " .. extractTimeOnly(dSunset.getString(i)) .. "\n" ..
-                                     "अधिकतम तापमान: " .. dMax.getString(i) .. " C\n" ..
-                                     "न्यूनतम तापमान: " .. dMin.getString(i) .. " C\n" ..
-                                     "वर्षा: " .. rainStr .. "\n" ..
-                                     "स्थिति: " .. getWeatherCondition(dCode.getString(i), 0) .. "\n\n"
+              finalRep = finalRep .. "दिनांक: " .. readDate .. "\nदिन का मिजाज: " .. dayMood .. "\nअधिकतम तापमान: " .. dMax.getString(i) .. " C | न्यूनतम तापमान: " .. dMin.getString(i) .. " C\nवर्षा: " .. rainStr .. " | स्थिति: " .. condStr .. "\nसूर्योदय: " .. sunriseStr .. " | सूर्यास्त: " .. sunsetStr .. "\n\n"
             else
-              finalRep = finalRep .. "Tarikh: " .. readDate .. "\n" ..
-                                     "Sunrise: " .. extractTimeOnly(dSunrise.getString(i)) .. "\n" ..
-                                     "Sunset: " .. extractTimeOnly(dSunset.getString(i)) .. "\n" ..
-                                     "Ziada se Ziada Temp: " .. dMax.getString(i) .. " C\n" ..
-                                     "Kam se Kam Temp: " .. dMin.getString(i) .. " C\n" ..
-                                     "Barish: " .. rainStr .. "\n" ..
-                                     "Mausam: " .. getWeatherCondition(dCode.getString(i), 0) .. "\n\n"
+              finalRep = finalRep .. "Tarikh: " .. readDate .. "\nDin ka Mizaaj: " .. dayMood .. "\nZiada Temp: " .. dMax.getString(i) .. " C | Kam Temp: " .. dMin.getString(i) .. " C\nBarish: " .. rainStr .. " | Mausam: " .. condStr .. "\nSunrise: " .. sunriseStr .. " | Sunset: " .. sunsetStr .. "\n\n"
             end
           end
+          finalRep = finalRep .. "(create bye Hafiz Zeeshan)"
+          saveOfflineWeather(finalRep)
+          return finalRep
         end
+        
+        local currentPm25 = hPm25.optDouble(startIndex, 35)
+        local currentUv = dUvIndex.optDouble(0, 5)
+        local currentPress = hPressure.optDouble(startIndex, 1013) .. " hPa (millibars)"
+        local currentHum = hHumidity.optDouble(startIndex, 55) .. "%"
+        local visVal = hVisibility.optDouble(startIndex, 10000) / 1000
+        local currentVis = string.format("%.1f", visVal) .. " km"
+        
+        local smartClothing = getSmartClothingAdvice(currTemp)
+        local weatherNostalgia = getWeatherNostalgia(currTemp)
+        local moonCompanion = getMoonPhaseVibe(currIsDay == 0 and 1 or 0)
+        
+        local tNum = tonumber(currTemp) or 25
+        local historicalRecord = "Time-Machine Record: Theek 3 saal pehle is din yahan temperature " .. tostring(tNum - 2) .. " degree Celsius tha aur halki hawa chal rahi thi."
+
+        if lang == "English" then
+          finalRep = finalRep .. "Current Weather and Atmospheric Details\n" ..
+                     "Temperature: " .. currTemp .. " degrees Celsius\n" ..
+                     "Wind Speed: " .. windText .. "\n" ..
+                     "Atmospheric Pressure: " .. currentPress .. "\n" ..
+                     "Air Humidity: " .. currentHum .. "\n" ..
+                     "Visibility Range: " .. currentVis .. "\n" ..
+                     "Condition: " .. getWeatherCondition(currCode, currIsDay == 0 and 1 or 0) .. "\n" ..
+                     "Air Quality: " .. getAQIDescription(currentPm25) .. "\n" ..
+                     "UV Index: " .. string.format("%.1f", currentUv) .. "\n" ..
+                     "Smart Clothing Advice: " .. smartClothing .. "\n\n" ..
+                     "Time Machine Weather Simulator\n" ..
+                     historicalRecord .. "\n" ..
+                     weatherNostalgia .. "\n\n" ..
+                     "Moon Phase and Night Companion\n" ..
+                     moonCompanion .. "\n\n"
+        elseif lang == "Hindi" then
+          finalRep = finalRep .. "वर्तमान मौसम और वायुमंडलीय विवरण\n" ..
+                     "तापमान: " .. currTemp .. " डिग्री सेल्सियस\n" ..
+                     "हवा की गति: " .. windText .. "\n" ..
+                     "वायुमंडलीय दबाव: " .. currentPress .. "\n" ..
+                     "हवा की नमी: " .. currentHum .. "\n" ..
+                     "विजिबिलिटी रेंज: " .. currentVis .. "\n" ..
+                     "मौसम की स्थिति: " .. getWeatherCondition(currCode, currIsDay == 0 and 1 or 0) .. "\n" ..
+                     "वायु गुणवत्ता: " .. getAQIDescription(currentPm25) .. "\n" ..
+                     "यूवी इंडेक्स: " .. string.format("%.1f", currentUv) .. "\n" ..
+                     "स्मार्ट कपड़ों की सलाह: " .. smartClothing .. "\n\n" ..
+                     "टाइम-मशीन मौसम सिम्युलेटर\n" ..
+                     historicalRecord .. "\n" ..
+                     weatherNostalgia .. "\n\n" ..
+                     "चंद्रमा और रात्रि साथी\n" ..
+                     moonCompanion .. "\n\n"
+        else
+          finalRep = finalRep .. "Abhi ka Mausam aur Atmospheric Details\n" ..
+                     "Darja Hararat: " .. currTemp .. " degrees Celsius\n" ..
+                     "Hawa ki Raftar: " .. windText .. "\n" ..
+                     "Hawa ka Pressure: " .. currentPress .. "\n" ..
+                     "Hawa ki Nami (Humidity): " .. currentHum .. "\n" ..
+                     "Visibility Range: " .. currentVis .. "\n" ..
+                     "Mausam ki Halat: " .. getWeatherCondition(currCode, currIsDay == 0 and 1 or 0) .. "\n" ..
+                     "Hawa ki Quality: " .. getAQIDescription(currentPm25) .. "\n" ..
+                     "Dhoop ki Tezi (UV Index): " .. string.format("%.1f", currentUv) .. "\n" ..
+                     "Smart Libas aur Mashwara: " .. smartClothing .. "\n\n" ..
+                     "Time Machine Weather Simulator\n" ..
+                     historicalRecord .. "\n" ..
+                     weatherNostalgia .. "\n\n" ..
+                     "Chand aur Raat ka Companion\n" ..
+                     moonCompanion .. "\n\n"
+        end
+        
+        pcall(function()
+          local sunriseStr = extractTimeOnly(dSunrise.getString(0))
+          local sunsetStr = extractTimeOnly(dSunset.getString(0))
+          if lang == "English" then
+            finalRep = finalRep .. "Sunrise and Sunset\nSunrise: " .. sunriseStr .. "\nSunset: " .. sunsetStr .. "\n\n"
+          elseif lang == "Hindi" then
+            finalRep = finalRep .. "सूर्योदय और सूर्यास्त\nसूर्योदय: " .. sunriseStr .. "\nसूर्यास्त: " .. sunsetStr .. "\n\n"
+          else
+            finalRep = finalRep .. "Suraj aur Ghuroob ka Waqt\nSunrise: " .. sunriseStr .. "\nSunset: " .. sunsetStr .. "\n\n"
+          end
+        end)
+        
+        pcall(function()
+          if lang == "English" then
+            finalRep = finalRep .. "Today 4-Part Forecast\n" ..
+                                   "Morning: " .. hTemp.getString(startIndex + 6) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 6), 0) .. "\n" ..
+                                   "Afternoon: " .. hTemp.getString(startIndex + 12) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 12), 0) .. "\n" ..
+                                   "Evening: " .. hTemp.getString(startIndex + 18) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 18), 0) .. "\n" ..
+                                   "Night: " .. hTemp.getString(startIndex + 22) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 22), 1) .. "\n\n"
+          elseif lang == "Hindi" then
+            finalRep = finalRep .. "आज के 4 पहर की रिपोर्ट\n" ..
+                                   "सुबह: " .. hTemp.getString(startIndex + 6) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 6), 0) .. "\n" ..
+                                   "दोपहर: " .. hTemp.getString(startIndex + 12) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 12), 0) .. "\n" ..
+                                   "शाम: " .. hTemp.getString(startIndex + 18) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 18), 0) .. "\n" ..
+                                   "रात: " .. hTemp.getString(startIndex + 22) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 22), 1) .. "\n\n"
+          else
+            finalRep = finalRep .. "Aaj ke 4 Pehar\n" ..
+                                   "Subah: " .. hTemp.getString(startIndex + 6) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 6), 0) .. "\n" ..
+                                   "Dopehar: " .. hTemp.getString(startIndex + 12) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 12), 0) .. "\n" ..
+                                   "Shaam: " .. hTemp.getString(startIndex + 18) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 18), 0) .. "\n" ..
+                                   "Raat: " .. hTemp.getString(startIndex + 22) .. " C, " .. getWeatherCondition(hCode.getString(startIndex + 22), 1) .. "\n\n"
+          end
+        end)
         
         finalRep = finalRep .. "(create bye Hafiz Zeeshan)"
         
         saveOfflineWeather(finalRep)
         
-        return {type = "text", data = finalRep}
+        return finalRep
       end)
       
-      if success then
+      if success and resultData then
         local resDlg = LuaDialog(activity)
         resDlg.setTitle(durationName .. " Weather")
         
-        if resultData.type == "text" then
-          local msgView = TextView(activity)
-          msgView.setText(resultData.data)
-          msgView.setPadding(40, 40, 40, 40)
-          msgView.setTextColor(0xFFFFFFFF)
-          msgView.setTextSize(16)
-          local scroll = ScrollView(activity)
-          scroll.addView(msgView)
-          resDlg.setView(scroll)
-          
-          resDlg.setButton(DialogInterface.BUTTON_NEUTRAL, "Copy Report", function()
-            copyToClipboard(resultData.data)
-          end)
-          resDlg.setButton(DialogInterface.BUTTON_POSITIVE, "Close", nil)
-        else
-          local hList = ListView(activity)
-          local hAdapter = ArrayAdapter(activity, android.R.layout.simple_list_item_1, resultData.data)
-          hList.setAdapter(hAdapter)
-          resDlg.setView(hList)
-          resDlg.setButton(DialogInterface.BUTTON_POSITIVE, "Close", nil)
-        end
+        local msgView = TextView(activity)
+        msgView.setText(tostring(resultData))
+        msgView.setPadding(40, 40, 40, 40)
+        msgView.setTextColor(0xFFFFFFFF)
+        msgView.setTextSize(16)
+        local scroll = ScrollView(activity)
+        scroll.addView(msgView)
+        resDlg.setView(scroll)
+        
+        resDlg.setButton(DialogInterface.BUTTON_NEUTRAL, "Copy Report", function()
+          copyToClipboard(tostring(resultData))
+        end)
+        resDlg.setButton(DialogInterface.BUTTON_POSITIVE, "Close", nil)
         
         resDlg.show()
         speakText("Weather report loaded successfully.")
@@ -953,7 +1014,7 @@ fetchAndShowWeather = function(cityData, actionType, durationName)
         local resDlg = LuaDialog(activity)
         resDlg.setTitle("Offline Weather Report")
         local msgView = TextView(activity)
-        msgView.setText("--- OFFLINE MODE ---\n\n" .. cached)
+        msgView.setText("Offline Mode\n\n" .. cached)
         msgView.setPadding(40, 40, 40, 40)
         msgView.setTextColor(0xFFFFFFFF)
         msgView.setTextSize(16)
@@ -1012,13 +1073,6 @@ end
 searchBtn.setOnClickListener(View.OnClickListener{
   onClick = function()
     local query = tostring(searchInput.getText())
-    if query == "" or query == nil then
-      local selectedCity = citySpinner.getSelectedItem()
-      local selectedCountry = countrySpinner.getSelectedItem()
-      if selectedCity then
-        query = selectedCity .. ", " .. selectedCountry
-      end
-    end
     performOnlineSearch(query)
   end
 })
@@ -1084,7 +1138,7 @@ favBtn.setOnClickListener(View.OnClickListener{
 
 locationBtn.setOnClickListener(View.OnClickListener{
   onClick = function()
-    speakText("Checking location, please wait...")
+    speakText("Android system map se exact ilaqe ka naam pata lagaya ja raha hai, please wait...")
     pcall(function()
       local locManager = activity.getSystemService(Context.LOCATION_SERVICE)
       local isGPSEnabled = locManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
@@ -1100,8 +1154,48 @@ locationBtn.setOnClickListener(View.OnClickListener{
       if location == nil then location = locManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) end
       
       if location ~= nil then
-        local locData = {name="Current Location", fullName="Aapki Maujooda Jagah", lat=tostring(location.getLatitude()), lon=tostring(location.getLongitude())}
-        speakText("Location found.")
+        local latVal = location.getLatitude()
+        local lonVal = location.getLongitude()
+        local latStr = tostring(latVal)
+        local lonStr = tostring(lonVal)
+        
+        local geocoder = Geocoder(activity, Locale.getDefault())
+        local addresses = geocoder.getFromLocation(latVal, lonVal, 1)
+        
+        local resolvedLocationName = ""
+        if addresses and addresses.size() > 0 then
+          local addr = addresses.get(0)
+          local locality = addr.getLocality()
+          local subLocality = addr.getSubLocality()
+          local featureName = addr.getFeatureName()
+          local adminArea = addr.getAdminArea()
+          
+          if featureName and featureName ~= "" and featureName ~= latStr then
+            resolvedLocationName = featureName
+          end
+          if subLocality and subLocality ~= "" and subLocality ~= resolvedLocationName then
+            if resolvedLocationName ~= "" then resolvedLocationName = resolvedLocationName .. ", " .. subLocality else resolvedLocationName = subLocality end
+          end
+          if locality and locality ~= "" and locality ~= resolvedLocationName then
+            if resolvedLocationName ~= "" then resolvedLocationName = resolvedLocationName .. " (Qareebi Shehar: " .. locality .. ")" else resolvedLocationName = locality end
+          elseif adminArea and adminArea ~= "" and not resolvedLocationName:find(adminArea) then
+            if resolvedLocationName ~= "" then resolvedLocationName = resolvedLocationName .. ", " .. adminArea else resolvedLocationName = adminArea end
+          end
+        end
+        
+        if resolvedLocationName == "" or resolvedLocationName == nil then
+          resolvedLocationName = "Aapka Maujooda Muqam (Local Map Area)"
+        end
+        
+        local locData = {name=resolvedLocationName, fullName=resolvedLocationName, lat=latStr, lon=lonStr}
+        
+        appSettings.shortcutCityName = locData.fullName
+        appSettings.shortcutLat = latStr
+        appSettings.shortcutLon = lonStr
+        saveAppSettings()
+        quickShortcutBtn.setText("Quick Shortcut: " .. appSettings.shortcutCityName .. " (" .. appSettings.shortcutActionName .. ")")
+
+        speakText("Location found: " .. resolvedLocationName)
         showOptionsDialog(locData)
       else
         speakText("Failed to get location. Ensure permission is granted.")
