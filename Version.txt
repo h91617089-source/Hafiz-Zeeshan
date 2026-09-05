@@ -1,1 +1,18 @@
-1.2
+1.3
+what's new
+Weather Pro 360 - New Update Features:
+
+1. Current Location Name Announcement:
+   - Now automatically detects and announces exact local town, tehsil, or area names using Android native system maps.
+
+2. Weather Memory Lane & Nostalgia:
+   - Enjoy historical weather fun-facts and past climate memories matching today's date for a warm community feel.
+
+3. Swipeable Forecast Lists:
+   - 24-hour and multi-day forecasts are now converted into easy swipeable line-by-line lists for screen reader users.
+
+4. Advanced Atmospheric Details:
+   - Added live Atmospheric Pressure (hPa), Air Humidity (%), and Visibility Range (km) to the main report.
+
+5. Clean Screen Reader Experience:
+   - Removed all distracting equal and dash symbols to ensure a smooth, natural reading flow.
