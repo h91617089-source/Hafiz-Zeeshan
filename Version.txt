@@ -1,2 +1,2 @@
 2.0
-What is the big update? What is the new addition? Now in this tool you can see the prayer time, you can also check the weather for 16 days and you can also see the recent searches. Apart from that, the errors that were in it have also been fixed and it has been made a great tool. Thank you so much for using it. 
+With this tool, you can now check the weather for 16 days, you can see the prayer time, you can see the weather report of any location, you can also see it in long format and short format, and you can also see recent searches. In addition, many errors have been fixed. You can turn all these things on or off from the settings.
