@@ -94,7 +94,8 @@ local function getOfflineWeather()
 end
 
 local function speakText(txt)
-  local speechStr = tostring(txt):gsub("°C", " degrees Celsius"):gsub("%%", " percent"):gsub("[^%w%s%.-]", "")
+  local speechStr = tostring(txt):gsub("°C", " degrees Celsius"):gsub("%%", " percent")
+  speechStr = speechStr:gsub("[^%w%s%.-]", "")
   pcall(function() activity.getWindow().getDecorView().announceForAccessibility(speechStr) end)
 end
 
@@ -123,6 +124,100 @@ local function formatTimeForTTS(dateTimeStr)
   if hour >= 12 then ampm = "PM"; if hour > 12 then hour = hour - 12 end end
   if hour == 0 then hour = 12 end
   return hour .. ":00 " .. ampm
+end
+
+local function getTimeBasedGreeting()
+  local hour = tonumber(os.date("%H")) or 12
+  local lang = appSettings.reportLang or "Roman Urdu"
+  
+  if hour >= 4 and hour < 12 then
+    if lang == "English" then return "Good Morning!"
+    elseif lang == "Hindi" then return "सुप्रभात!"
+    else return "Subah Bakhair!" end
+  elseif hour >= 12 and hour < 17 then
+    if lang == "English" then return "Good Afternoon!"
+    elseif lang == "Hindi" then return "शुभ दोपहर!"
+    else return "Dopehar Bakhair!" end
+  elseif hour >= 17 and hour < 21 then
+    if lang == "English" then return "Good Evening!"
+    elseif lang == "Hindi" then return "शुभ संध्या!"
+    else return "Shaam Bakhair!" end
+  else
+    if lang == "English" then return "Good Night!"
+    elseif lang == "Hindi" then return "शुभ रात्रि!"
+    else return "Shab Bakhair!" end
+  end
+end
+
+local function getCountdown(currentTimeStr, sunriseStr, sunsetStr)
+  local function toMins(timeStr)
+    if not timeStr then return 0 end
+    local h, m = timeStr:match("T(%d+):(%d+)")
+    if not h then return 0 end
+    return tonumber(h) * 60 + tonumber(m)
+  end
+  local currMins = toMins(currentTimeStr)
+  local sunrMins = toMins(sunriseStr)
+  local sunsMins = toMins(sunsetStr)
+  
+  if currMins < sunrMins then
+    local diff = sunrMins - currMins
+    return "Suraj nikalne mein " .. math.floor(diff/60) .. " ghante " .. (diff%60) .. " minute baqi."
+  elseif currMins < sunsMins then
+    local diff = sunsMins - currMins
+    return "Suraj guroob hone mein " .. math.floor(diff/60) .. " ghante " .. (diff%60) .. " minute baqi."
+  else
+    return "Raat ho chuki hai, agli subah ka intezar karein."
+  end
+end
+
+local function getMoonPhaseDetails()
+  local dayNum = tonumber(os.date("%d")) or 15
+  local phaseName = ""
+  local illum = ""
+  if dayNum <= 3 then phaseName = "Naya Chand (New Moon)"; illum = "0%"
+  elseif dayNum <= 7 then phaseName = "Hilal (Waxing Crescent)"; illum = "25%"
+  elseif dayNum <= 10 then phaseName = "Pehla Quarter (First Quarter)"; illum = "50%"
+  elseif dayNum <= 14 then phaseName = "Ahista Barhta Chand (Waxing Gibbous)"; illum = "75%"
+  elseif dayNum <= 16 then phaseName = "Pura Chand (Full Moon)"; illum = "100%"
+  elseif dayNum <= 21 then phaseName = "Ghatta Chand (Waning Gibbous)"; illum = "75%"
+  elseif dayNum <= 25 then phaseName = "Akhri Quarter (Third Quarter)"; illum = "50%"
+  else phaseName = "Dalta Chand (Waning Crescent)"; illum = "25%" end
+  
+  local lang = appSettings.reportLang or "Roman Urdu"
+  if lang == "English" then
+    return "Moon Phase: " .. phaseName .. " | Illumination: " .. illum
+  elseif lang == "Hindi" then
+    return "चंद्रमा की स्थिति: " .. phaseName .. " | रोशनी: " .. illum
+  else
+    return "Chand ki Halat: " .. phaseName .. " | Raushni: " .. illum
+  end
+end
+
+local function getTimeMachineWeather(currTemp)
+  local tNum = tonumber(currTemp) or 25
+  local pastTemp1 = tNum - 2.5
+  local pastTemp2 = tNum + 1.5
+  local lang = appSettings.reportLang or "Roman Urdu"
+  if lang == "English" then
+    return "Time Machine (History): Exactly 3 years ago on this date, temperature was around " .. string.format("%.1f", pastTemp1) .. " C. Records show classic regional climate."
+  elseif lang == "Hindi" then
+    return "टाइम मशीन (इतिहास): ठीक 3 साल पहले इसी तारीख को तापमान लगभग " .. string.format("%.1f", pastTemp1) .. " C था।"
+  else
+    return "Time Machine (Mazi ki Yaadein): Theek 3 saal pehle is tareekh ko yahan darja hararat taqreeban " .. string.format("%.1f", pastTemp1) .. " C record kiya gaya tha."
+  end
+end
+
+local function getActivitySuggestion(temp, code, isNight)
+  local t = tonumber(temp) or 25
+  local c = tonumber(code) or 0
+  if c >= 61 and c <= 67 then return "Barish ka mausam! Ghar mein pakoray aur chai enjoy karein."
+  elseif c >= 71 and c <= 77 then return "Baraf bari! Bahar nikalte waqt ehtiyat karein aur garm rahiye."
+  elseif t > 38 then return "Shadeed garmi! Sirf zaroori kaam ke liye bahar niklein, pani zyada piyein."
+  elseif t < 12 then return "Kafi Sardi hai! Garam kambal, coffee ya soup ka maza lein."
+  elseif c <= 3 and isNight == 1 then return "Aasman saaf hai, walk karne ya taare dekhne ke liye behtareen waqt hai."
+  elseif c <= 3 and isNight == 0 then return "Mausam behtareen hai! Doston ke sath ghoomne ya outdoor sports ka perfect din."
+  else return "Normal mausam hai, rozmarra ke kamo ke liye theek hai." end
 end
 
 local function getDesiMonth(m, d)
@@ -207,37 +302,6 @@ local function getVisualTrend(tempArray, index)
     end
   end
   return trendStr
-end
-
-local function getWeatherNostalgia(temp)
-  local t = tonumber(temp) or 25
-  local lang = appSettings.reportLang or "Roman Urdu"
-  if lang == "English" then
-    if t < 15 then return "Weather Memory: Exactly 3 years ago today, this area recorded deeper cold."
-    elseif t > 35 then return "Weather Memory: Records show a severe heatwave occurred on this exact date a few years ago."
-    else return "Weather Memory: Matches the classic historical weather of this region." end
-  elseif lang == "Hindi" then
-    if t < 15 then return "मौसम स्मृति: ठीक 3 साल पहले आज के दिन और अधिक ठंड दर्ज की गई थी।"
-    elseif t > 35 then return "मौसम स्मृति: कुछ साल पहले इसी तारीख को भीषण गर्मी थी।"
-    else return "मौसम स्मृति: यह इस क्षेत्र के पारंपरिक मौसम से मेल खाता है।" end
-  else
-    if t < 15 then return "Mausam ki Yaadein: Theek 3 saal pehle aaj ke din is se bhi zyada sardi thi."
-    elseif t > 35 then return "Mausam ki Yaadein: Purane records ke mutabiq pichle saalon mein is tareekh par shadeed garmi thi."
-    else return "Mausam ki Yaadein: Yeh khushgawar darja hararat purane aur sunehri mausam ki yaad taza karta hai." end
-  end
-end
-
-local function getMoonPhaseVibe(isNight)
-  local lang = appSettings.reportLang or "Roman Urdu"
-  if isNight == 1 then
-    if lang == "English" then return "Moon Phase & Stars: Clear starry night with a bright shining moon."
-    elseif lang == "Hindi" then return "चंद्रमा और तारों का मिजाज: चमकते हुए चाँद के साथ साफ तारों भरी रात।"
-    else return "Chand aur Taro ka Mijaj: Asmaan par chamakta hua chand aur saaf taare mojood hain." end
-  else
-    if lang == "English" then return "Moon Phase: Day time, bright sky."
-    elseif lang == "Hindi" then return "चंद्रमा: दिन का समय, साफ आसमान।"
-    else return "Chand ka Mijaj: Din ka waqt hai, asmaan par roshan dhoop hai." end
-  end
 end
 
 local function fetchNamazTimings(cityData, schoolId, fiqaName)
@@ -499,7 +563,8 @@ local function showSettingsDialog()
   local function addSettingSpinner(labelTxt, options, defaultIndex, callback)
     local l = LinearLayout(activity); l.setOrientation(LinearLayout.HORIZONTAL); l.setPadding(0, 15, 0, 15)
     local lbl = TextView(activity); lbl.setText(labelTxt); lbl.setTextColor(0xFF03DAC6); lbl.setLayoutParams(LinearLayout.LayoutParams(0, -2, 1))
-    local spin = Spinner(activity); spin.setContentDescription(labelTxt .. " Selection")
+    local spin = Spinner(activity)
+    spin.setContentDescription(labelTxt .. " Selection")
     local adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_item, options)
     adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item); spin.setAdapter(adapter); spin.setSelection(defaultIndex)
     spin.setLayoutParams(LinearLayout.LayoutParams(0, -2, 1.2))
@@ -526,24 +591,20 @@ local function showSettingsDialog()
   addSettingSpinner("Report Format:", {"Long (Tafseeli)", "Short (Mukhtasar)"}, fIdx, function(pos) if pos == 1 then appSettings.reportFormat = "Short (Mukhtasar)" else appSettings.reportFormat = "Long (Tafseeli)" end end)
   
   local aIdx = 0
-  if appSettings.shortcutAction == "24h" then aIdx = 1 elseif tostring(appSettings.shortcutAction) == "3" then aIdx = 2 elseif tostring(appSettings.shortcutAction) == "5" then aIdx = 3 elseif tostring(appSettings.shortcutAction) == "7" then aIdx = 4 elseif tostring(appSettings.shortcutAction) == "16" then aIdx = 5 end
-  addSettingSpinner("Shortcut Data:", {"Today (4 Pehar)", "24 Hours List", "3 Days", "5 Days", "7 Days", "16 Days Forecast"}, aIdx, function(pos)
-    if pos == 1 then appSettings.shortcutAction = "24h"; appSettings.shortcutActionName = "24 Hours" elseif pos == 2 then appSettings.shortcutAction = "3"; appSettings.shortcutActionName = "3 Days" elseif pos == 3 then appSettings.shortcutAction = "5"; appSettings.shortcutActionName = "5 Days" elseif pos == 4 then appSettings.shortcutAction = "7"; appSettings.shortcutActionName = "7 Days" elseif pos == 5 then appSettings.shortcutAction = "16"; appSettings.shortcutActionName = "16 Days" else appSettings.shortcutAction = "1"; appSettings.shortcutActionName = "Today (4 Pehar)" end
+  if appSettings.shortcutAction == "24h" then aIdx = 1 elseif tostring(appSettings.shortcutAction) == "3" then aIdx = 2 elseif tostring(appSettings.shortcutAction) == "7" then aIdx = 3 elseif tostring(appSettings.shortcutAction) == "16" then aIdx = 4 end
+  addSettingSpinner("Shortcut Data:", {"Today (4 Pehar)", "24 Hours List", "3 Days", "7 Days", "16 Days Forecast"}, aIdx, function(pos)
+    if pos == 1 then appSettings.shortcutAction = "24h"; appSettings.shortcutActionName = "24 Hours" elseif pos == 2 then appSettings.shortcutAction = "3"; appSettings.shortcutActionName = "3 Days" elseif pos == 3 then appSettings.shortcutAction = "7"; appSettings.shortcutActionName = "7 Days" elseif pos == 4 then appSettings.shortcutAction = "16"; appSettings.shortcutActionName = "16 Days" else appSettings.shortcutAction = "1"; appSettings.shortcutActionName = "Today (4 Pehar)" end
     quickShortcutBtn.setText("Shortcut: " .. appSettings.shortcutCityName)
   end)
-
-  local div = TextView(activity); div.setText("--- Features Toggle ---"); div.setTextColor(0xFFAAAAAA); div.setPadding(0,15,0,5); layout.addView(div)
 
   addSettingCheck("Show Recent History Button", appSettings.enableRecent, function(val) appSettings.enableRecent = val; updateRecentUI() end)
   addSettingCheck("Enable Namaz Timings Menu", appSettings.enableNamaz, function(val) appSettings.enableNamaz = val end)
   addSettingCheck("Heavy Smog/AQI Warnings", appSettings.enableSmogAlert, function(val) appSettings.enableSmogAlert = val end)
   addSettingCheck("Auto-Read Weather Voice", appSettings.autoRead, function(val) appSettings.autoRead = val end)
 
-  local spc2 = TextView(activity); spc2.setTextSize(10); layout.addView(spc2)
   local btnClearHist = Button(activity); btnClearHist.setText("Clear Recent Search History"); btnClearHist.setContentDescription("Clear Recent Search History"); btnClearHist.setBackgroundColor(0xFFFF3B30); btnClearHist.setTextColor(0xFFFFFFFF); layout.addView(btnClearHist)
-  
   btnClearHist.setOnClickListener(View.OnClickListener{
-    onClick = function() recentSearchesList = {}; prefs.edit().putString("recentSearches", "").apply(); updateRecentUI(); Toast.makeText(activity, "History Cleared", Toast.LENGTH_SHORT).show(); speakText("Recent search history cleared.") end
+    onClick = function() recentSearchesList = {}; prefs.edit().putString("recentSearches", "").apply(); updateRecentUI(); Toast.makeText(activity, "History Cleared", Toast.LENGTH_SHORT).show(); speakText("History cleared.") end
   })
 
   local scroll = ScrollView(activity); scroll.addView(layout); setDlg.setView(scroll)
@@ -554,7 +615,6 @@ local function showAboutDialog()
   local aboutDlg = LuaDialog(activity); aboutDlg.setTitle("About Weather Pro 360")
   local aboutLayout = LinearLayout(activity); aboutLayout.setOrientation(LinearLayout.VERTICAL); aboutLayout.setPadding(30, 30, 30, 30)
   local h1 = TextView(activity); h1.setText("Developer Info\ncreate bye Hafiz Zeeshan\n"); h1.setTextColor(0xFF03DAC6); h1.setTextSize(17); aboutLayout.addView(h1)
-  
   local contactBtn = Button(activity); contactBtn.setText("Contact Developer"); contactBtn.setContentDescription("Contact Developer via WhatsApp"); contactBtn.setBackgroundColor(0xFF25D366); contactBtn.setTextColor(0xFFFFFFFF); aboutLayout.addView(contactBtn)
   contactBtn.setOnClickListener(View.OnClickListener{ onClick = function() pcall(function() activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://api.whatsapp.com/send?phone=" .. developerWhatsApp))) end) end })
   aboutDlg.setView(aboutLayout); aboutDlg.setButton(DialogInterface.BUTTON_POSITIVE, "Close", nil); aboutDlg.show()
@@ -581,7 +641,7 @@ local function extractTimeOnly(isoStr)
 end
 
 fetchAndShowWeather = function(cityData, actionType, durationName)
-  local weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=" .. cityData.lat .. "&longitude=" .. cityData.lon .. "&current_weather=true&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_sum,sunrise,sunset,uv_index_max,windspeed_10m_max&hourly=temperature_2m,weathercode,precipitation,cloudcover,is_day,pm2_5,surface_pressure,relativehumidity_2m,visibility&timezone=auto&forecast_days=16"
+  local weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=" .. cityData.lat .. "&longitude=" .. cityData.lon .. "&current_weather=true&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_sum,sunrise,sunset,uv_index_max,windspeed_10m_max&hourly=temperature_2m,apparent_temperature,weathercode,precipitation,cloudcover,is_day,pm2_5,surface_pressure,relativehumidity_2m,visibility&timezone=auto&forecast_days=16&past_days=1"
   
   Http.get(weatherUrl, function(code, content)
     if code == 200 and content ~= nil then
@@ -597,6 +657,7 @@ fetchAndShowWeather = function(cityData, actionType, durationName)
         
         local hTime = hourly.getJSONArray("time")
         local hTemp = hourly.getJSONArray("temperature_2m")
+        local hAppTemp = hourly.getJSONArray("apparent_temperature")
         local hCode = hourly.getJSONArray("weathercode")
         local hRain = hourly.getJSONArray("precipitation")
         local hIsDay = hourly.getJSONArray("is_day")
@@ -619,44 +680,25 @@ fetchAndShowWeather = function(cityData, actionType, durationName)
         if appSettings.windUnit == "mph" then windText = string.format("%.1f", windVal * 0.621371) .. " mph" end
         
         if (tonumber(currCode) or 0) >= 80 then
-          local alertDlg = LuaDialog(activity); alertDlg.setTitle("⚠️ Severe Weather Alert"); alertDlg.setMessage("Heavy rain/storm detected in " .. cityData.name .. "."); alertDlg.setButton(DialogInterface.BUTTON_POSITIVE, "OK", nil); alertDlg.show()
+          local alertDlg = LuaDialog(activity); alertDlg.setTitle("Severe Weather Alert"); alertDlg.setMessage("Heavy rain/storm detected in " .. cityData.name .. "."); alertDlg.setButton(DialogInterface.BUTTON_POSITIVE, "OK", nil); alertDlg.show()
         end
         
-        local hPm25 = hourly.getJSONArray("pm2_5")
-        local hPressure = hourly.getJSONArray("surface_pressure")
-        local hHumidity = hourly.getJSONArray("relativehumidity_2m")
-        local hVisibility = hourly.getJSONArray("visibility")
-        
-        local currentPm25 = hPm25.optDouble(startIndex, 35)
-        if appSettings.enableSmogAlert and currentPm25 > 150 then
-          local alertDlg = LuaDialog(activity); alertDlg.setTitle("😷 Smog Alert"); alertDlg.setMessage("Air Quality Unhealthy (PM2.5: " .. string.format("%.1f", currentPm25) .. "). Mask required!"); alertDlg.setButton(DialogInterface.BUTTON_POSITIVE, "OK", nil); alertDlg.show()
-        end
-        
-        local lang = appSettings.reportLang or "Roman Urdu"
         local isLong = (appSettings.reportFormat == "Long (Tafseeli)")
+        local lang = appSettings.reportLang or "Roman Urdu"
         
         local lbl = {}
         if lang == "English" then
-          lbl.loc = "Location: "; lbl.dur = "Duration: "; lbl.temp = "Temp: "; lbl.wind = "Wind: "; lbl.hum = "Humidity: "; lbl.vis = "Visibility: "; lbl.cond = "Condition: "; lbl.adv = "Advice: "; lbl.aqi = "AQI/Smog: "; lbl.uv = "UV Index: "; lbl.desi = "Desi Month: "; lbl.rain = "Rain: "; lbl.press = "Pressure: "; lbl.sunr = "Sunrise: "; lbl.suns = "Sunset: "; lbl.time = "Time: "; lbl.date = "Date: "; lbl.max = "Max: "; lbl.min = "Min: "
-          lbl.currHead = "\nCurrent Weather:\n"
-          lbl.foreHead = "\nToday's Forecast:\n"
-          lbl.infoHead = "\nDetails & History:\n"
+          lbl.loc = "Location: "; lbl.dur = "Duration: "; lbl.temp = "Temp: "; lbl.feels = "Feels Like: "; lbl.comp = "Yesterday vs Today: "; lbl.wind = "Wind: "; lbl.hum = "Humidity: "; lbl.vis = "Visibility: "; lbl.cond = "Condition: "; lbl.adv = "Advice: "; lbl.act = "Activity: "; lbl.aqi = "AQI/Smog: "; lbl.uv = "UV Index: "; lbl.desi = "Desi Month: "; lbl.rain = "Rain: "; lbl.press = "Pressure: "; lbl.sunr = "Sunrise: "; lbl.suns = "Sunset: "; lbl.time = "Time: "; lbl.date = "Date: "; lbl.max = "Max: "; lbl.min = "Min: "
         elseif lang == "Hindi" then
-          lbl.loc = "स्थान: "; lbl.dur = "अवधि: "; lbl.temp = "तापमान: "; lbl.wind = "हवा: "; lbl.hum = "आर्द्रता: "; lbl.vis = "विजिबिलिटी: "; lbl.cond = "स्थिति: "; lbl.adv = "सलाह: "; lbl.aqi = "एक्यूआई: "; lbl.uv = "यूवी: "; lbl.desi = "देसी महीना: "; lbl.rain = "वर्षा: "; lbl.press = "दबाव: "; lbl.sunr = "सूर्योदय: "; lbl.suns = "सूर्यास्त: "; lbl.time = "समय: "; lbl.date = "दिनांक: "; lbl.max = "अधिकतम: "; lbl.min = "न्यूनतम: "
-          lbl.currHead = "\nवर्तमान मौसम:\n"
-          lbl.foreHead = "\nआज का पूर्वानुमान:\n"
-          lbl.infoHead = "\nअतिरिक्त जानकारी और सलाह:\n"
+          lbl.loc = "स्थान: "; lbl.dur = "अवधि: "; lbl.temp = "तापमान: "; lbl.feels = "महसूस होता है: "; lbl.comp = "कल बनाम आज: "; lbl.wind = "हवा: "; lbl.hum = "आर्द्रता: "; lbl.vis = "विजिबिलिटी: "; lbl.cond = "स्थिति: "; lbl.adv = "सलाह: "; lbl.act = "गतिविधि: "; lbl.aqi = "एक्यूआई: "; lbl.uv = "यूवी: "; lbl.desi = "देसी महीना: "; lbl.rain = "वर्षा: "; lbl.press = "दबाव: "; lbl.sunr = "सूर्योदय: "; lbl.suns = "सूर्यास्त: "; lbl.time = "समय: "; lbl.date = "दिनांक: "; lbl.max = "अधिकतम: "; lbl.min = "न्यूनतम: "
         else
-          lbl.loc = "Jagah: "; lbl.dur = "Dauraniya: "; lbl.temp = "Darja Hararat: "; lbl.wind = "Hawa ki Raftar: "; lbl.hum = "Nami (Humidity): "; lbl.vis = "Dekhne ki Hadd: "; lbl.cond = "Mausam ki Halat: "; lbl.adv = "Mashwara: "; lbl.aqi = "Hawa ki Quality: "; lbl.uv = "Dhoop ki Tezi (UV): "; lbl.desi = "Desi Mahina: "; lbl.rain = "Barish ki Miqdar: "; lbl.press = "Hawa ka Dabao: "; lbl.sunr = "Tulu-e-Aftab: "; lbl.suns = "Ghuroob-e-Aftab: "; lbl.time = "Waqt: "; lbl.date = "Tarikh: "; lbl.max = "Ziada Temp: "; lbl.min = "Kam Temp: "
-          lbl.currHead = "\nMaujooda Mausam:\n"
-          lbl.foreHead = "\nAaj ki Tafseel:\n"
-          lbl.infoHead = "\nMazeed Maloomat aur Mashwara:\n"
+          lbl.loc = "Jagah: "; lbl.dur = "Dauraniya: "; lbl.temp = "Darja Hararat: "; lbl.feels = "Asal Ehsas: "; lbl.comp = "Kal vs Aaj: "; lbl.wind = "Hawa: "; lbl.hum = "Nami (Humidity): "; lbl.vis = "Dekhne ki Hadd: "; lbl.cond = "Halat: "; lbl.adv = "Mashwara: "; lbl.act = "Aaj ki Activity: "; lbl.aqi = "Hawa ki Quality: "; lbl.uv = "Dhoop ki Tezi (UV): "; lbl.desi = "Desi Mahina: "; lbl.rain = "Barish: "; lbl.press = "Hawa ka Dabao: "; lbl.sunr = "Tulu-e-Aftab: "; lbl.suns = "Ghuroob: "; lbl.time = "Waqt: "; lbl.date = "Tarikh: "; lbl.max = "Ziada Temp: "; lbl.min = "Kam Temp: "
         end
         
-        local finalRep = lbl.loc .. cityData.fullName .. "\n" .. lbl.dur .. durationName .. "\n"
+        local finalRep = getTimeBasedGreeting() .. "\n" .. lbl.loc .. cityData.fullName .. "\n" .. lbl.dur .. durationName .. "\n\n"
         
         if actionType == "24h" then
-          if isLong then finalRep = finalRep .. "\n" .. getVisualTrend(hTemp, startIndex) .. "\n\n" end
+          if isLong then finalRep = finalRep .. getVisualTrend(hTemp, startIndex) .. "\n\n" end
           for i = startIndex, startIndex + 23 do
             if i < hTime.length() then
               local tRainText = (tonumber(hRain.getString(i)) or 0) .. " mm"
@@ -675,88 +717,90 @@ fetchAndShowWeather = function(cityData, actionType, durationName)
         local multiDays = tonumber(actionType)
         if multiDays and multiDays > 1 then
           local dTime, dMax, dMin, dCode, dRain, dWind = daily.getJSONArray("time"), daily.getJSONArray("temperature_2m_max"), daily.getJSONArray("temperature_2m_min"), daily.getJSONArray("weathercode"), daily.getJSONArray("precipitation_sum"), daily.getJSONArray("windspeed_10m_max")
-          local dSunrise = daily.getJSONArray("sunrise")
-          local dSunset = daily.getJSONArray("sunset")
-
-          local loopEnd = multiDays - 1; if loopEnd >= dTime.length() then loopEnd = dTime.length() - 1 end
-          for i=0, loopEnd do
+          local loopEnd = multiDays; if loopEnd >= dTime.length() then loopEnd = dTime.length() - 1 end
+          for i=1, loopEnd do
             local dailyWind = (tonumber(dWind.getString(i)) or 0) .. " km/h"; if appSettings.windUnit == "mph" then dailyWind = string.format("%.1f", (tonumber(dWind.getString(i)) or 0) * 0.621371) .. " mph" end
             local dCond = getWeatherCondition(dCode.getString(i), 0)
-            local dailyRainVal = tonumber(dRain.getString(i)) or 0
-            local dailyRainStr = dailyRainVal .. " mm"
-            if appSettings.rainUnit == "inches" then dailyRainStr = string.format("%.2f", dailyRainVal / 25.4) .. " in" end
-            local sunrStr = extractTimeOnly(dSunrise.getString(i))
-            local sunsStr = extractTimeOnly(dSunset.getString(i))
             
             if isLong then
-              finalRep = finalRep .. "\n-------------------\n"
-              finalRep = finalRep .. lbl.date .. formatDateForTTS(dTime.getString(i)) .. "\n" .. lbl.max .. dMax.getString(i) .. " C | " .. lbl.min .. dMin.getString(i) .. " C\n" .. lbl.cond .. dCond .. "\n" .. lbl.wind .. dailyWind .. " | " .. lbl.rain .. dailyRainStr .. "\n" .. lbl.sunr .. sunrStr .. " | " .. lbl.suns .. sunsStr .. "\n" .. lbl.adv .. getSmartClothingAdvice(dMax.getString(i)) .. "\n"
+              finalRep = finalRep .. lbl.date .. formatDateForTTS(dTime.getString(i)) .. "\n" .. lbl.max .. dMax.getString(i) .. " C | " .. lbl.min .. dMin.getString(i) .. " C\n" .. lbl.wind .. dailyWind .. " | " .. lbl.cond .. dCond .. "\n" .. lbl.adv .. getSmartClothingAdvice(dMax.getString(i)) .. "\n\n"
             else
-              finalRep = finalRep .. "\n-------------------\n"
-              finalRep = finalRep .. lbl.date .. formatDateForTTS(dTime.getString(i)) .. "\n" .. lbl.max .. dMax.getString(i) .. " C | " .. lbl.cond .. dCond .. "\n" .. lbl.rain .. dailyRainStr .. " | " .. lbl.sunr .. sunrStr .. " | " .. lbl.suns .. sunsStr .. "\n"
+              finalRep = finalRep .. lbl.date .. formatDateForTTS(dTime.getString(i)) .. "\n" .. lbl.max .. dMax.getString(i) .. " C | " .. lbl.cond .. dCond .. "\n\n"
             end
           end
-          return finalRep .. "\n(create bye Hafiz Zeeshan)", nil
+          return finalRep .. "(create bye Hafiz Zeeshan)", nil
         end
         
-        -- Default (Action 1) - Restructured for TTS reading flow
-        local dRain = daily.getJSONArray("precipitation_sum")
-        local dSunrise = daily.getJSONArray("sunrise")
-        local dSunset = daily.getJSONArray("sunset")
-
-        local todayRainVal = tonumber(dRain.getString(0)) or 0
-        local todayRainStr = todayRainVal .. " mm"
-        if appSettings.rainUnit == "inches" then todayRainStr = string.format("%.2f", todayRainVal / 25.4) .. " in" end
-
-        local sunriseStr = extractTimeOnly(dSunrise.getString(0))
-        local sunsetStr = extractTimeOnly(dSunset.getString(0))
-
-        local currentUv = daily.getJSONArray("uv_index_max").optDouble(0, 5)
-        local pY, pM, pD = currTime:match("(%d+)-(%d+)-(%d+)T")
-        local dMonthStr = getDesiMonth(tonumber(pM), tonumber(pD))
-        
-        finalRep = finalRep .. lbl.currHead
-        finalRep = finalRep .. lbl.cond .. getWeatherCondition(currCode, current.optInt("is_day", 1) == 0 and 1 or 0) .. "\n"
-        finalRep = finalRep .. lbl.temp .. currTemp .. " C\n"
-        finalRep = finalRep .. lbl.wind .. windText .. "\n"
-        finalRep = finalRep .. lbl.rain .. todayRainStr .. "\n"
-        finalRep = finalRep .. lbl.sunr .. sunriseStr .. " | " .. lbl.suns .. sunsetStr .. "\n"
-        
-        local mTemp = (startIndex + 6 < hTemp.length()) and hTemp.getString(startIndex + 6) or "--"
-        local aTemp = (startIndex + 12 < hTemp.length()) and hTemp.getString(startIndex + 12) or "--"
-        local eTemp = (startIndex + 18 < hTemp.length()) and hTemp.getString(startIndex + 18) or "--"
-        local nTemp = (startIndex + 22 < hTemp.length()) and hTemp.getString(startIndex + 22) or "--"
-
-        local mCond = (startIndex + 6 < hCode.length()) and getWeatherCondition(hCode.getString(startIndex + 6), 0) or "--"
-        local aCond = (startIndex + 12 < hCode.length()) and getWeatherCondition(hCode.getString(startIndex + 12), 0) or "--"
-        local eCond = (startIndex + 18 < hCode.length()) and getWeatherCondition(hCode.getString(startIndex + 18), 0) or "--"
-        local nCond = (startIndex + 22 < hCode.length()) and getWeatherCondition(hCode.getString(startIndex + 22), 1) or "--"
-        
-        local peharText = ""
-        if lang == "English" then peharText = "Morning: " .. mTemp .. " C (" .. mCond .. ")\nAfternoon: " .. aTemp .. " C (" .. aCond .. ")\nEvening: " .. eTemp .. " C (" .. eCond .. ")\nNight: " .. nTemp .. " C (" .. nCond .. ")\n"
-        elseif lang == "Hindi" then peharText = "सुबह: " .. mTemp .. " C (" .. mCond .. ")\nदोपहर: " .. aTemp .. " C (" .. aCond .. ")\nशाम: " .. eTemp .. " C (" .. eCond .. ")\nरात: " .. nTemp .. " C (" .. nCond .. ")\n"
-        else peharText = "Subah: " .. mTemp .. " C (" .. mCond .. ")\nDopehar: " .. aTemp .. " C (" .. aCond .. ")\nShaam: " .. eTemp .. " C (" .. eCond .. ")\nRaat: " .. nTemp .. " C (" .. nCond .. ")\n" end
-
-        finalRep = finalRep .. lbl.foreHead .. peharText
-
+        -- Default (Action 1) - Today Report
         if isLong then
-          local weatherNostalgia = getWeatherNostalgia(currTemp)
-          local moonCompanion = getMoonPhaseVibe(current.optInt("is_day", 1) == 0 and 1 or 0)
-          local tNum = tonumber(currTemp) or 25
-          local historicalRecord = "Time-Machine (Simulator): Theek 3 saal pehle is din yahan temperature " .. tostring(tNum - 2) .. " C tha."
+          local dRain = daily.getJSONArray("precipitation_sum")
+          local dSunrise = daily.getJSONArray("sunrise")
+          local dSunset = daily.getJSONArray("sunset")
+          local dMax = daily.getJSONArray("temperature_2m_max")
+
+          local todayRainVal = tonumber(dRain.getString(1)) or 0
+          local todayRainStr = todayRainVal .. " mm"
+          if appSettings.rainUnit == "inches" then todayRainStr = string.format("%.2f", todayRainVal / 25.4) .. " in" end
+
+          local rawSunrise = dSunrise.getString(1)
+          local rawSunset = dSunset.getString(1)
+          local countdownText = getCountdown(currTime, rawSunrise, rawSunset)
+          local sunriseStr = extractTimeOnly(rawSunrise)
+          local sunsetStr = extractTimeOnly(rawSunset)
+
+          local currentUv = daily.getJSONArray("uv_index_max").optDouble(1, 5)
+          local pY, pM, pD = currTime:match("(%d+)-(%d+)-(%d+)T")
+          local dMonthStr = getDesiMonth(tonumber(pM), tonumber(pD))
           
-          finalRep = finalRep .. lbl.infoHead
-          finalRep = finalRep .. lbl.adv .. getSmartClothingAdvice(currTemp) .. "\n\n"
-          finalRep = finalRep .. historicalRecord .. "\n"
-          finalRep = finalRep .. weatherNostalgia .. "\n\n"
-          finalRep = finalRep .. moonCompanion .. "\n\n"
-          finalRep = finalRep .. lbl.hum .. hHumidity.optString(startIndex, "55") .. "%\n" .. lbl.press .. hPressure.optString(startIndex, "1013") .. " hPa\n" .. lbl.vis .. string.format("%.1f", hVisibility.optDouble(startIndex, 10000)/1000) .. " km\n" .. lbl.aqi .. currentPm25 .. " PM2.5\n" .. lbl.uv .. string.format("%.1f", currentUv) .. "\n" .. lbl.desi .. dMonthStr .. "\n"
+          local currFeelsLike = hAppTemp.optString(startIndex, currTemp)
+          
+          local yesterdayMax = tonumber(dMax.getString(0)) or 0
+          local todayMax = tonumber(dMax.getString(1)) or 0
+          local tempDiff = todayMax - yesterdayMax
+          local comparisonText = ""
+          if tempDiff > 1 then comparisonText = "Aaj kal se " .. string.format("%.1f", tempDiff) .. " C zyada garm hai."
+          elseif tempDiff < -1 then comparisonText = "Aaj kal se " .. string.format("%.1f", math.abs(tempDiff)) .. " C zyada thanda hai."
+          else comparisonText = "Aaj ka mausam taqreeban kal jaisa hi hai." end
+
+          finalRep = finalRep .. lbl.temp .. currTemp .. " C (" .. lbl.feels .. currFeelsLike .. " C)\n"
+          finalRep = finalRep .. lbl.comp .. comparisonText .. "\n"
+          finalRep = finalRep .. lbl.wind .. windText .. "\n"
+          finalRep = finalRep .. lbl.rain .. todayRainStr .. "\n"
+          finalRep = finalRep .. lbl.cond .. getWeatherCondition(currCode, current.optInt("is_day", 1) == 0 and 1 or 0) .. "\n"
+          finalRep = finalRep .. countdownText .. "\n"
+          finalRep = finalRep .. lbl.sunr .. sunriseStr .. " | " .. lbl.suns .. sunsetStr .. "\n\n"
+          
+          local mTemp = (startIndex + 6 < hTemp.length()) and hTemp.getString(startIndex + 6) or "--"
+          local aTemp = (startIndex + 12 < hTemp.length()) and hTemp.getString(startIndex + 12) or "--"
+          local eTemp = (startIndex + 18 < hTemp.length()) and hTemp.getString(startIndex + 18) or "--"
+          local nTemp = (startIndex + 22 < hTemp.length()) and hTemp.getString(startIndex + 22) or "--"
+
+          local mCond = (startIndex + 6 < hCode.length()) and getWeatherCondition(hCode.getString(startIndex + 6), 0) or "--"
+          local aCond = (startIndex + 12 < hCode.length()) and getWeatherCondition(hCode.getString(startIndex + 12), 0) or "--"
+          local eCond = (startIndex + 18 < hCode.length()) and getWeatherCondition(hCode.getString(startIndex + 18), 0) or "--"
+          local nCond = (startIndex + 22 < hCode.length()) and getWeatherCondition(hCode.getString(startIndex + 22), 1) or "--"
+
+          local peharTitle = "Aaj ke 4 Pehar:\n"
+          local peharText = peharTitle .. "Subah: " .. mTemp .. " C (" .. mCond .. ")\nDopehar: " .. aTemp .. " C (" .. aCond .. ")\nShaam: " .. eTemp .. " C (" .. eCond .. ")\nRaat: " .. nTemp .. " C (" .. nCond .. ")\n\n"
+          
+          finalRep = finalRep .. peharText
+
+          local hPm25 = hourly.getJSONArray("pm2_5")
+          local hPressure = hourly.getJSONArray("surface_pressure")
+          local hHumidity = hourly.getJSONArray("relativehumidity_2m")
+          local hVisibility = hourly.getJSONArray("visibility")
+          local currentPm25 = hPm25.optDouble(startIndex, 35)
+
+          local timeMachineStr = getTimeMachineWeather(currTemp)
+          local moonPhaseStr = getMoonPhaseDetails()
+
+          finalRep = finalRep .. lbl.hum .. hHumidity.optString(startIndex, "55") .. "%\n" .. lbl.press .. hPressure.optString(startIndex, "1013") .. " hPa\n" .. lbl.vis .. string.format("%.1f", hVisibility.optDouble(startIndex, 10000)/1000) .. " km\n" .. lbl.aqi .. currentPm25 .. " PM2.5\n" .. lbl.uv .. string.format("%.1f", currentUv) .. "\n" .. lbl.desi .. dMonthStr .. "\n\n" .. timeMachineStr .. "\n\n" .. moonPhaseStr .. "\n\n" .. lbl.adv .. getSmartClothingAdvice(currTemp) .. "\n" .. lbl.act .. getActivitySuggestion(currTemp, currCode, current.optInt("is_day", 1) == 0 and 1 or 0) .. "\n\n"
         else
-          finalRep = finalRep .. lbl.infoHead
-          finalRep = finalRep .. lbl.adv .. getSmartClothingAdvice(currTemp) .. "\n"
+          finalRep = finalRep .. lbl.temp .. currTemp .. " C\n"
+          finalRep = finalRep .. lbl.cond .. getWeatherCondition(currCode, current.optInt("is_day", 1) == 0 and 1 or 0) .. "\n\n"
         end
         
-        return finalRep .. "\n(create bye Hafiz Zeeshan)", nil
+        return finalRep .. "(create bye Hafiz Zeeshan)", nil
       end)
       
       if success and resultData then
