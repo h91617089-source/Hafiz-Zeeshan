@@ -1,2 +1,15 @@
-2.0
-With this tool, you can now check the weather for 16 days, you can see the prayer time, you can see the weather report of any location, you can also see it in long format and short format, and you can also see recent searches. In addition, many errors have been fixed. You can turn all these things on or off from the settings.
+2.1
+🚀 Weather Pro 360 - What's New (Update Changelog)
+
+We have added several exciting and smart features in this update to enhance your experience:
+
+1. 🕒 Smart Time Greetings: The app now automatically greets you with "Good Morning," "Good Afternoon," or "Good Evening" based on your current local time.
+2. 🌡️ Feels Like Temperature: Added the "Feels Like" metric to give you a more accurate sense of the weather based on wind and humidity.
+3. ⚖️ Yesterday vs. Today Comparison: A live comparison telling you exactly how much hotter or colder today is compared to yesterday.
+4. ⏳ Sunrise & Sunset Countdown: Real-time countdown showing exactly how many hours and minutes are left until the next sunrise or sunset.
+5. 🕰️ Weather Time Machine: The app now reveals what the temperature was in your city exactly 3 years ago on this exact date.
+6. 🌙 Moon Phase System: Added detailed moon phase tracking (New Moon, Full Moon, Crescent) along with illumination percentage for night reports.
+7. ✂️ Refined Short Format: The "Short Format" setting has been strictly streamlined to output only the Temperature and Weather Condition for a quicker, distraction-free reading.
+8. 🗣️ Screen Reader (Jieshuo) Optimization: Removed disruptive emojis from the text output and fixed all content descriptions on buttons to ensure a flawless and fully accessible screen reader experience.
+9. 🎤 Voice Search Restored: The microphone-based city voice search has been completely fixed and is fully operational again.
+10. 🌐 Multi-Language Support: All newly added features are fully translated and support Roman Urdu, Hindi, and English based on your saved settings.
